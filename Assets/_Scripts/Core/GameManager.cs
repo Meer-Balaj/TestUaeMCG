@@ -22,9 +22,63 @@ namespace Core
             }
         }
 
+        private Gameplay.GridManager _gridManager;
+        
+        private int _totalPairs;
+        private int _matchesFound;
+
         private void Start()
         {
-            Debug.Log("GameManager Initialized");
+            _gridManager = FindObjectOfType<Gameplay.GridManager>();
+            if (_gridManager == null) Debug.LogError("GridManager not found!");
+            
+            if (ScoreManager.Instance == null)
+            {
+                 var sm = gameObject.AddComponent<ScoreManager>();
+            }
+
+            // Calculate totals
+            _totalPairs = (_gridManager.Rows * _gridManager.Cols) / 2;
+
+            // Attempt to Load
+            var data = SaveManager.LoadGame();
+            if (data != null)
+            {
+                Debug.Log("Game Loaded!");
+                ScoreManager.Instance.InitializeScore(data.Score);
+                _gridManager.RestoreLayout(data);
+                
+                // Recalculate matches found based on loaded data
+                _matchesFound = 0;
+                foreach (bool isMatched in data.CardMatchedStates)
+                {
+                    if (isMatched) _matchesFound++;
+                }
+                _matchesFound /= 2; // Since state stores individual cards
+            }
+            else
+            {
+                StartNewGame();
+            }
+        }
+
+        private void StartNewGame()
+        {
+            Debug.Log("New Game Started");
+            ScoreManager.Instance.ResetScore();
+            _matchesFound = 0;
+            _flippedCards.Clear();
+            _gridManager.GenerateLayout();
+            
+            // Recalculate totals in case settings changed
+            _totalPairs = (_gridManager.Rows * _gridManager.Cols) / 2;
+            
+            SaveManager.ClearSave(); 
+        }
+
+        public void RestartGame()
+        {
+            StartNewGame();
         }
 
         public void OnCardClicked(Gameplay.CardController card)
@@ -34,14 +88,6 @@ namespace Core
             card.FlipOpen();
             _flippedCards.Enqueue(card);
 
-            // We need 2 cards to check. 
-            // If we have >= 2, we can start checking, but wait...
-            // "Continuous card flipping" implies we don't wait for the USER.
-            // But we must process them in pairs.
-            // If the user flips A, B, C, D (quickly).
-            // A & B enters queue. C & D enters queue.
-            // We should process A & B. Then C & D.
-            
             if (!_isCheckingMatch && _flippedCards.Count >= 2)
             {
                 StartCoroutine(ProcessMatches());
@@ -57,29 +103,57 @@ namespace Core
                 var card1 = _flippedCards.Dequeue();
                 var card2 = _flippedCards.Dequeue();
 
-                // Wait a moment so the user sees the second card flip
-                // We shouldn't block the USER from flipping more, but this coroutine handles the comparison logic logic time.
-                // The flip animation takes 0.2s. Let's wait at least that.
                 yield return new WaitForSeconds(0.5f);
 
                 if (card1.CardTypeId == card2.CardTypeId)
                 {
-                    // Match!
                     card1.SetMatched();
                     card2.SetMatched();
-                    Debug.Log($"Matched Type {card1.CardTypeId}!");
-                    // TODO: Play Sound & Score
+                    
+                    ScoreManager.Instance.OnMatch();
+                    _matchesFound++;
+                    Debug.Log($"Matched! Score: {ScoreManager.Instance.CurrentScore}");
+                    
+                    if (_matchesFound >= _totalPairs)
+                    {
+                        Debug.Log("Level Complete!");
+                        // Optional: Wait then restart
+                        SaveManager.ClearSave(); // Clear save on completion so next launch is fresh
+                        yield return new WaitForSeconds(1.0f);
+                        RestartGame();
+                    }
+                    else
+                    {
+                        SaveCurrentGame();
+                    }
                 }
                 else
                 {
-                    // No Match
+                    ScoreManager.Instance.OnMismatch();
                     card1.FlipClose();
                     card2.FlipClose();
-                    // TODO: Play Sound
                 }
             }
 
             _isCheckingMatch = false;
+        }
+
+        public void SaveCurrentGame()
+        {
+            if (_gridManager == null) return;
+
+            _gridManager.GetCurrentState(out var ids, out var matches);
+            SaveManager.SaveGame(ScoreManager.Instance.CurrentScore, _gridManager.Rows, _gridManager.Cols, ids, matches);
+        }
+
+        private void OnApplicationQuit()
+        {
+            SaveCurrentGame();
+        }
+
+        private void OnApplicationPause(bool pause)
+        {
+            if (pause) SaveCurrentGame();
         }
     }
 }

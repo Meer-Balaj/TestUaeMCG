@@ -58,7 +58,8 @@ namespace Gameplay
         public void SetMatched()
         {
             IsMatched = true;
-            // Optional: Dim visual or lock interaction
+            IsFaceUp = true;
+            _targetImage.sprite = _frontSprite;
             _targetImage.color = Color.gray; 
         }
 

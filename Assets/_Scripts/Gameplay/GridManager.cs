@@ -33,10 +33,13 @@ namespace Gameplay
             if (_container == null) _container = _rectTransform;
         }
 
+        public int Rows => _rows;
+        public int Cols => _cols;
+
         protected override void Start()
         {
             base.Start();
-            GenerateLayout();
+            // Let GameManager decide when to generate or load
         }
 
         public void GenerateLayout()
@@ -50,6 +53,59 @@ namespace Gameplay
             ClearGrid();
             SetupGridLayout();
             SpawnNewCards();
+        }
+
+        public void RestoreLayout(Core.GameData data)
+        {
+            if (_cardPrefab == null) return;
+            
+            _rows = data.Rows;
+            _cols = data.Cols;
+            
+            ClearGrid();
+            SetupGridLayout();
+            
+            _spawnedCards.Clear();
+            int totalCards = _rows * _cols;
+
+            for (int i = 0; i < totalCards; i++)
+            {
+                if (i >= data.CardLayoutIds.Count) break;
+
+                GameObject cardObj = Instantiate(_cardPrefab, _container);
+                CardController card = cardObj.GetComponent<CardController>();
+                if (card != null)
+                {
+                    int typeId = data.CardLayoutIds[i];
+                    bool isMatched = data.CardMatchedStates[i];
+                    
+                    Sprite face = (_cardFaceSprites != null && typeId < _cardFaceSprites.Count) 
+                                ? _cardFaceSprites[typeId] 
+                                : null;
+
+                    card.Initialize(typeId, face, _cardBackSprite);
+                    if (isMatched) card.SetMatched();
+                    
+                    card.OnCardClicked += Core.GameManager.Instance.OnCardClicked;
+                    _spawnedCards.Add(card);
+                }
+            }
+        }
+
+        public void GetCurrentState(out List<int> ids, out List<bool> matchedStates)
+        {
+            ids = new List<int>();
+            matchedStates = new List<bool>();
+            
+            foreach (var card in _spawnedCards)
+            {
+                // Safety check if card was destroyed externally
+                if (card != null)
+                {
+                    ids.Add(card.CardTypeId);
+                    matchedStates.Add(card.IsMatched);
+                }
+            }
         }
 
         private void ClearGrid()
@@ -107,6 +163,7 @@ namespace Gameplay
 
             for (int i = 0; i < pairCount; i++)
             {
+                // Loop through sprites if we have more pairs than sprites
                 int typeId = i % _cardFaceSprites.Count; 
                 cardTypeIds[i * 2] = typeId;
                 cardTypeIds[i * 2 + 1] = typeId;
