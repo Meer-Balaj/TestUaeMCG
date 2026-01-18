@@ -10,23 +10,28 @@ namespace Core
         public int Score;
         public int Rows;
         public int Cols;
-        public List<int> CardLayoutIds; // The TypeID of each card by index
-        public List<bool> CardMatchedStates; // Whether each card is already matched
+        public int LevelIndex; // Track which level this save belongs to
+        public List<int> CardLayoutIds;
+        public List<bool> CardMatchedStates;
+        public List<bool> CardFaceUpStates; // Track if card is physically face up (matched or pending)
     }
 
     public static class SaveManager
     {
         private static string SavePath => Path.Combine(Application.persistentDataPath, "gamedata.json");
+        private const string UnlockedLevelKey = "UnlockedLevel";
 
-        public static void SaveGame(int score, int rows, int cols, List<int> layoutIds, List<bool> matchedStates)
+        public static void SaveGame(int score, int rows, int cols, int levelIndex, List<int> layoutIds, List<bool> matchedStates, List<bool> faceUpStates)
         {
             GameData data = new GameData
             {
                 Score = score,
                 Rows = rows,
                 Cols = cols,
+                LevelIndex = levelIndex,
                 CardLayoutIds = layoutIds,
-                CardMatchedStates = matchedStates
+                CardMatchedStates = matchedStates,
+                CardFaceUpStates = faceUpStates
             };
 
             string json = JsonUtility.ToJson(data);
@@ -53,6 +58,22 @@ namespace Core
         public static void ClearSave()
         {
             if (File.Exists(SavePath)) File.Delete(SavePath);
+        }
+
+        public static bool HasSave()
+        {
+            return File.Exists(SavePath);
+        }
+
+        public static int GetUnlockedLevel()
+        {
+            return PlayerPrefs.GetInt(UnlockedLevelKey, 1);
+        }
+
+        public static void SetUnlockedLevel(int level)
+        {
+            PlayerPrefs.SetInt(UnlockedLevelKey, level);
+            PlayerPrefs.Save();
         }
     }
 }

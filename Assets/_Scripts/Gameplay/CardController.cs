@@ -64,6 +64,13 @@ namespace Gameplay
             _targetImage.color = Color.gray; 
         }
 
+        public void SetFaceUpImmediate()
+        {
+            IsFaceUp = true;
+            _targetImage.sprite = _frontSprite;
+            // No color change, not matched yet
+        }
+
         private IEnumerator FlipRoutine(bool showFront)
         {
             IsProcessing = true;

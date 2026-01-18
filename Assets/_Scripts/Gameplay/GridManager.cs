@@ -36,6 +36,12 @@ namespace Gameplay
         public int Rows => _rows;
         public int Cols => _cols;
 
+        public void SetDimensions(int rows, int cols)
+        {
+            _rows = rows;
+            _cols = cols;
+        }
+
         protected override void Start()
         {
             base.Start();
@@ -55,9 +61,10 @@ namespace Gameplay
             SpawnNewCards();
         }
 
-        public void RestoreLayout(Core.GameData data)
+        public List<CardController> RestoreLayout(Core.GameData data)
         {
-            if (_cardPrefab == null) return;
+            List<CardController> pendingCards = new List<CardController>();
+            if (_cardPrefab == null) return pendingCards;
             
             _rows = data.Rows;
             _cols = data.Cols;
@@ -67,6 +74,7 @@ namespace Gameplay
             
             _spawnedCards.Clear();
             int totalCards = _rows * _cols;
+            bool hasFaceUpData = data.CardFaceUpStates != null && data.CardFaceUpStates.Count == data.CardLayoutIds.Count;
 
             for (int i = 0; i < totalCards; i++)
             {
@@ -78,24 +86,37 @@ namespace Gameplay
                 {
                     int typeId = data.CardLayoutIds[i];
                     bool isMatched = data.CardMatchedStates[i];
-                    
+                    bool isFaceUp = hasFaceUpData ? data.CardFaceUpStates[i] : isMatched;
+
                     Sprite face = (_cardFaceSprites != null && typeId < _cardFaceSprites.Count) 
                                 ? _cardFaceSprites[typeId] 
                                 : null;
 
                     card.Initialize(typeId, face, _cardBackSprite);
-                    if (isMatched) card.SetMatched();
+                    
+                    if (isMatched)
+                    {
+                        card.SetMatched();
+                    }
+                    else if (isFaceUp)
+                    {
+                        // Visually open but not matched
+                        card.SetFaceUpImmediate(); 
+                        pendingCards.Add(card);
+                    }
                     
                     card.OnCardClicked += Core.GameManager.Instance.OnCardClicked;
                     _spawnedCards.Add(card);
                 }
             }
+            return pendingCards;
         }
 
-        public void GetCurrentState(out List<int> ids, out List<bool> matchedStates)
+        public void GetCurrentState(out List<int> ids, out List<bool> matchedStates, out List<bool> faceUpStates)
         {
             ids = new List<int>();
             matchedStates = new List<bool>();
+            faceUpStates = new List<bool>();
             
             foreach (var card in _spawnedCards)
             {
@@ -104,11 +125,12 @@ namespace Gameplay
                 {
                     ids.Add(card.CardTypeId);
                     matchedStates.Add(card.IsMatched);
+                    faceUpStates.Add(card.IsFaceUp);
                 }
             }
         }
 
-        private void ClearGrid()
+        public void ClearGrid()
         {
             foreach (Transform child in _container)
             {
