@@ -44,6 +44,7 @@ namespace Gameplay
         public void FlipOpen()
         {
             if (IsFaceUp) return;
+            if (Core.SoundManager.Instance != null) Core.SoundManager.Instance.PlayFlip();
             IsFaceUp = true;
             StartCoroutine(FlipRoutine(true));
         }

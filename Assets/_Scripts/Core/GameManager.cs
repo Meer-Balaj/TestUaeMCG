@@ -114,11 +114,14 @@ namespace Core
                     _matchesFound++;
                     Debug.Log($"Matched! Score: {ScoreManager.Instance.CurrentScore}");
                     
+                    if (SoundManager.Instance != null) SoundManager.Instance.PlayMatch();
+
                     if (_matchesFound >= _totalPairs)
                     {
                         Debug.Log("Level Complete!");
-                        // Optional: Wait then restart
-                        SaveManager.ClearSave(); // Clear save on completion so next launch is fresh
+                        if (SoundManager.Instance != null) SoundManager.Instance.PlayGameWin();
+                        
+                        SaveManager.ClearSave(); 
                         yield return new WaitForSeconds(1.0f);
                         RestartGame();
                     }
@@ -130,6 +133,7 @@ namespace Core
                 else
                 {
                     ScoreManager.Instance.OnMismatch();
+                    if (SoundManager.Instance != null) SoundManager.Instance.PlayMismatch();
                     card1.FlipClose();
                     card2.FlipClose();
                 }

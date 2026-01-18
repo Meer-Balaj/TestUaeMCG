@@ -18,6 +18,7 @@ namespace UI
 
         private void OnRestartClicked()
         {
+            if (Core.SoundManager.Instance != null) Core.SoundManager.Instance.PlayClick();
             if (Core.GameManager.Instance != null)
             {
                 Core.GameManager.Instance.RestartGame();
