@@ -39,8 +39,16 @@ namespace Gameplay
         private void CalculateCardSize()
         {
             RectTransform rect = GetComponent<RectTransform>();
+            // Force layout to calculate sizes if panel just became active
+            LayoutRebuilder.ForceRebuildLayoutImmediate(rect);
+            
             float width = rect.rect.width - (_layout.padding.left + _layout.padding.right);
             float height = rect.rect.height - (_layout.padding.top + _layout.padding.bottom);
+            
+            // Safety: avoid division by zero or negative sizes
+            if (width <= 0) width = 800f; 
+            if (height <= 0) height = 600f;
+
             float cellW = (width - (_layout.spacing.x * (Cols - 1))) / Cols;
             float cellH = (height - (_layout.spacing.y * (Rows - 1))) / Rows;
             _layout.cellSize = new Vector2(cellW, cellH);
@@ -62,7 +70,11 @@ namespace Gameplay
                 int tmp = ids[i]; ids[i] = ids[r]; ids[r] = tmp;
             }
 
-            foreach (int id in ids) CreateCard(id);
+            for (int i = 0; i < ids.Count; i++)
+            {
+                var card = CreateCard(ids[i]);
+                card.AnimateSpawn(i * 0.05f);
+            }
         }
 
         public void RestoreLayout(List<int> ids, List<bool> matched)

@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
 using System.Collections;
+using DG.Tweening;
 
 namespace Gameplay
 {
@@ -16,6 +17,7 @@ namespace Gameplay
         private Sprite _front;
         private Sprite _back;
         private bool _animating;
+        private Tween _flipTween;
 
         public void Initialize(int typeId, Sprite front, Sprite back)
         {
@@ -33,6 +35,16 @@ namespace Gameplay
             
             IsMatched = false;
             IsFaceUp = false;
+            transform.localScale = Vector3.one;
+        }
+
+        public void AnimateSpawn(float delay)
+        {
+            transform.localScale = Vector3.zero;
+            transform.DOScale(Vector3.one, 0.5f)
+                .SetDelay(delay)
+                .SetEase(Ease.OutBack)
+                .SetUpdate(true);
         }
 
         public void OnPointerClick(PointerEventData eventData)
@@ -41,45 +53,56 @@ namespace Gameplay
                 Core.GameManager.Instance.OnCardSelected(this);
         }
 
-        public void FlipOpen() => StartCoroutine(Flip(true));
-        public void FlipClose() => StartCoroutine(Flip(false));
+        public void FlipOpen() => Flip(true);
+        public void FlipClose() => Flip(false);
 
         public void SetMatched()
         {
             IsMatched = true;
             IsFaceUp = true;
+            
+            // Correct match animation: grow larger then back to normal
+            transform.DOScale(Vector3.one * 1.2f, 0.2f).SetLoops(2, LoopType.Yoyo).SetEase(Ease.OutQuad);
+            _display.DOColor(Color.gray, 0.4f);
+            
             if (_display)
             {
                 _display.sprite = _front;
-                _display.color = Color.gray;
             }
         }
 
-        private IEnumerator Flip(bool showFront)
+        public void AnimateMismatch()
         {
+            // Shake animation for mismatch + delay flip back
+            Sequence mismatchSeq = DOTween.Sequence();
+            mismatchSeq.Append(transform.DOShakePosition(0.4f, 15f, 20, 90, false, true));
+            mismatchSeq.OnComplete(() => FlipClose());
+        }
+
+        private void Flip(bool showFront)
+        {
+            if (_animating) _flipTween?.Kill();
+            
             _animating = true;
             if (showFront) Core.AudioManager.Instance.PlayFlip();
-            
-            float duration = 0.12f;
-            for (float t = 0; t < duration; t += Time.deltaTime)
-            {
-                if (!this || !_display) yield break;
-                transform.localScale = new Vector3(Mathf.Lerp(1, 0, t / duration), 1, 1);
-                yield return null;
-            }
 
-            if (!_display) yield break;
-            _display.sprite = showFront ? _front : _back;
-            IsFaceUp = showFront;
-
-            for (float t = 0; t < duration; t += Time.deltaTime)
+            _flipTween = transform.DOScaleX(0, 0.12f).OnComplete(() =>
             {
-                if (!this || !_display) yield break;
-                transform.localScale = new Vector3(Mathf.Lerp(0, 1, t / duration), 1, 1);
-                yield return null;
+                if (!_display) return;
+                _display.sprite = showFront ? _front : _back;
+                IsFaceUp = showFront;
+                
+                transform.DOScaleX(1, 0.12f).OnComplete(() => _animating = false);
+            });
+        }
+
+        private void OnDestroy()
+        {
+            if (Application.isPlaying)
+            {
+                _flipTween?.Kill();
+                transform.DOKill();
             }
-            if (this) transform.localScale = Vector3.one;
-            _animating = false;
         }
     }
 }

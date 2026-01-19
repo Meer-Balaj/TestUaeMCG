@@ -44,9 +44,17 @@ namespace Core
             
             ScoreManager.Instance.ResetScore();
             _grid.SetDimensions(rows, cols);
-            _grid.GenerateLayout();
+            
+            // Wait one frame before generating to ensure UIManager transition doesn't mess with Grid layout calculations
+            StartCoroutine(DelayedGenerate());
             
             SaveManager.ClearFullState();
+        }
+
+        private IEnumerator DelayedGenerate()
+        {
+            yield return null;
+            _grid.GenerateLayout();
         }
 
         public void ResumeLevel()
@@ -74,8 +82,17 @@ namespace Core
         public void NextLevel()
         {
             int next = _currentLevel + 1;
-            int r = next == 1 ? 2 : (next == 2 ? 2 : 4);
-            int c = next == 1 ? 2 : (next == 2 ? 3 : 4);
+            int r, c;
+
+            switch(next)
+            {
+                case 1: r = 2; c = 2; break; // 2x2
+                case 2: r = 2; c = 3; break; // 2x3
+                case 3: r = 4; c = 4; break; // 4x4
+                case 4: r = 5; c = 6; break; // 5x6
+                default: 
+                    r = 6; c = 6; break; // 6x6 onwards
+            }
             StartLevel(next, r, c);
         }
 
@@ -137,8 +154,8 @@ namespace Core
                 }
                 else
                 {
-                    c1.FlipClose();
-                    c2.FlipClose();
+                    c1.AnimateMismatch();
+                    c2.AnimateMismatch();
                     ScoreManager.Instance.AddScore(-1);
                     UIManager.Instance.SpawnScorePopup(c1.transform.position, -1);
                     AudioManager.Instance.PlayMismatch();
