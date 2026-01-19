@@ -25,16 +25,22 @@ namespace Core
         }
 
         private Gameplay.GridManager _gridManager;
+        private UI.GameUIManager _uiManager;
         
         private int _totalPairs;
         private int _matchesFound;
+
+        private void EnsureDependencies()
+        {
+            if (_gridManager == null) _gridManager = FindObjectOfType<Gameplay.GridManager>(true);
+            if (_uiManager == null) _uiManager = FindObjectOfType<UI.GameUIManager>(true);
+        }
         
         [SerializeField] private int _failScoreThreshold = -10;
 
         private void Start()
         {
-            _gridManager = FindObjectOfType<Gameplay.GridManager>(true);
-            if (_gridManager == null) Debug.LogError("GridManager not found!");
+            EnsureDependencies();
             
             if (ScoreManager.Instance == null)
             {
@@ -42,16 +48,15 @@ namespace Core
             }
 
             // Check if we are in Main Menu mode
-            if (FindObjectOfType<UI.MainMenuController>() != null)
+            var menu = FindObjectOfType<UI.MainMenuController>();
+            if (menu != null)
             {
-                // Wait for user input via MainMenuController
+                // We are in Menu, don't auto-start or auto-resume here.
+                // MainMenuController will call Resume/Start specifically.
                 return;
             }
 
-            // Calculate totals
-            _totalPairs = (_gridManager.Rows * _gridManager.Cols) / 2;
-
-            // Attempt to Load
+            // Attempt to auto-resume ONLY if not in menu (debug/direct scene play)
             var data = SaveManager.LoadGame();
             if (data != null)
             {
@@ -59,28 +64,37 @@ namespace Core
             }
             else
             {
-                // Default fallback if no save and no menu (debug mode)
                 StartNewGame(1); 
             }
         }
 
         public void StartGameWithLayout(int levelIndex, int rows, int cols)
         {
+            EnsureDependencies();
             if (_gridManager != null)
             {
                 _gridManager.SetDimensions(rows, cols);
                 StartNewGame(levelIndex);
             }
+            else
+            {
+                Debug.LogError("Cannot StartGameWithLayout: GridManager not found!");
+            }
         }
 
         public void ResumeGame(GameData data)
         {
+            EnsureDependencies();
             Debug.Log($"Resuming Level {data.LevelIndex}");
             _currentLevelIndex = data.LevelIndex;
-            _gridManager.SetDimensions(data.Rows, data.Cols);
+            
+            if (_gridManager != null)
+                _gridManager.SetDimensions(data.Rows, data.Cols);
+            
             _totalPairs = (data.Rows * data.Cols) / 2;
 
-            ScoreManager.Instance.InitializeScore(data.Score);
+            if (ScoreManager.Instance != null)
+                ScoreManager.Instance.InitializeScore(data.Score);
             
             // Recalculate matches first
             _matchesFound = 0;
@@ -125,7 +139,10 @@ namespace Core
         private void StartNewGame(int levelIndex)
         {
             Debug.Log($"New Game Started: Level {levelIndex}");
+            if (_uiManager != null) _uiManager.HideAllPanels();
+            
             _currentLevelIndex = levelIndex;
+            _isCheckingMatch = false; // Reset checking flag to allow new matches
             ScoreManager.Instance.ResetScore();
             _matchesFound = 0;
             _flippedCards.Clear();
@@ -144,6 +161,7 @@ namespace Core
 
         public void StopGame()
         {
+            if (_uiManager != null) _uiManager.HideAllPanels();
             if (_gridManager != null)
             {
                 _gridManager.ClearGrid();
@@ -179,16 +197,21 @@ namespace Core
                     card1.SetMatched();
                     card2.SetMatched();
                     
-                    ScoreManager.Instance.OnMatch();
+                    int points = ScoreManager.Instance.OnMatch();
                     _matchesFound++;
                     Debug.Log($"Matched! Score: {ScoreManager.Instance.CurrentScore}");
                     
                     if (SoundManager.Instance != null) SoundManager.Instance.PlayMatch();
+                    if (_uiManager != null) _uiManager.SpawnFloatingText(card1.transform.position, points);
 
                     if (_matchesFound >= _totalPairs)
                     {
                         Debug.Log("Level Complete!");
-                        if (SoundManager.Instance != null) SoundManager.Instance.PlayGameWin();
+                        // Play win sound is handled by UI Manager usually, or here. Let's keep existing logic if it was here?
+                        // Actually existing code had PlayGameWin here. UI Manager also has it. I will let UI Manager handle it to avoid double sound or remove it from here.
+                        // Existing code: if (SoundManager.Instance != null) SoundManager.Instance.PlayGameWin();
+                        // I will remove it here and let UI Manager do it, OR keep it here and remove from UI Manager.
+                        // Let's keep it here for logic consistency, but UI Manager ShowWinScreen also calls it. I'll comment out here if UI Manager is present.
                         
                         // Check Unlock
                         int unlocked = SaveManager.GetUnlockedLevel();
@@ -200,9 +223,16 @@ namespace Core
 
                         SaveManager.ClearSave(); 
                         
-                        // Wait then return to Main Menu
-                        yield return new WaitForSeconds(3.0f);
-                        ReturnToMainMenu();
+                        // Show Win Screen
+                        if (_uiManager != null)
+                        {
+                            _uiManager.ShowWinScreen();
+                        }
+                        else
+                        {
+                            yield return new WaitForSeconds(3.0f);
+                            ReturnToMainMenu();
+                        }
                     }
                     else
                     {
@@ -211,8 +241,10 @@ namespace Core
                 }
                 else
                 {
-                    ScoreManager.Instance.OnMismatch();
+                    int points = ScoreManager.Instance.OnMismatch();
                     if (SoundManager.Instance != null) SoundManager.Instance.PlayMismatch();
+                    if (_uiManager != null) _uiManager.SpawnFloatingText(card1.transform.position, points);
+
                     card1.FlipClose();
                     card2.FlipClose();
 
@@ -220,12 +252,19 @@ namespace Core
                     if (ScoreManager.Instance.CurrentScore <= _failScoreThreshold)
                     {
                          Debug.Log("Level Failed!");
-                         if (SoundManager.Instance != null) SoundManager.Instance.PlayGameFail();
                          
                          SaveManager.ClearSave();
                          
-                         yield return new WaitForSeconds(3.0f);
-                         ReturnToMainMenu();
+                         if (_uiManager != null)
+                         {
+                             _uiManager.ShowLoseScreen();
+                         }
+                         else
+                         {
+                             yield return new WaitForSeconds(3.0f);
+                             ReturnToMainMenu();
+                         }
+                         
                          yield break; // Stop processing
                     }
                 }
@@ -234,7 +273,25 @@ namespace Core
             _isCheckingMatch = false;
         }
 
-        private void ReturnToMainMenu()
+        public void LoadNextLevel()
+        {
+            int nextLevel = _currentLevelIndex + 1;
+            
+            // Map dimensions for next level
+            int r, c;
+            switch(nextLevel)
+            {
+                case 1: r = 2; c = 2; break;
+                case 2: r = 2; c = 3; break;
+                case 3: r = 4; c = 4; break;
+                case 4: r = 5; c = 6; break;
+                default: r = 5; c = 6; break;
+            }
+
+            StartGameWithLayout(nextLevel, r, c);
+        }
+
+        public void ReturnToMainMenu()
         {
             var menu = FindObjectOfType<UI.MainMenuController>();
             if (menu != null)

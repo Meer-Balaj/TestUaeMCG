@@ -40,7 +40,7 @@ namespace Core
             OnScoreChanged?.Invoke(CurrentScore);
         }
 
-        public void OnMatch()
+        public int OnMatch()
         {
             int points = _scorePerMatch;
             
@@ -56,17 +56,21 @@ namespace Core
             }
 
             AddScoreInternal(points);
+            return points;
         }
 
-        public void OnMismatch()
+        public int OnMismatch()
         {
             // Reset combo on mismatch
             _currentComboStreak = 0;
+            int pointsInfo = 0;
 
             if (_enableMismatchPenalty)
             {
-                AddScoreInternal(_scorePerMismatch);
+                pointsInfo = _scorePerMismatch;
+                AddScoreInternal(pointsInfo);
             }
+            return pointsInfo;
         }
 
         private void AddScoreInternal(int amount)
