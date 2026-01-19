@@ -1,109 +1,85 @@
-using System;
-using System.Collections;
 using UnityEngine;
-using UnityEngine.EventSystems;
 using UnityEngine.UI;
+using UnityEngine.EventSystems;
+using System.Collections;
 
 namespace Gameplay
 {
     public class CardController : MonoBehaviour, IPointerClickHandler
     {
-        [Header("References")]
-        [SerializeField] private Image _targetImage;
+        [SerializeField] private Image _display;
+        
+        public int CardTypeId { get; private set; }
+        public bool IsMatched { get; private set; }
+        public bool IsFaceUp { get; private set; }
+        
+        private Sprite _front;
+        private Sprite _back;
+        private bool _animating;
 
-        [Header("Debug/Status")]
-        public int CardTypeId;
-        public bool IsFaceUp;
-        public bool IsMatched;
-        public bool IsProcessing;
-
-        private Sprite _frontSprite;
-        private Sprite _backSprite;
-
-        public event Action<CardController> OnCardClicked;
-
-        public void Initialize(int cardTypeId, Sprite front, Sprite back)
+        public void Initialize(int typeId, Sprite front, Sprite back)
         {
-            CardTypeId = cardTypeId;
-            _frontSprite = front;
-            _backSprite = back;
-
-            name = $"Card_{cardTypeId}";
+            if (!_display) _display = GetComponentInChildren<Image>();
             
-            // Default state: Face Down
-            _targetImage.sprite = _backSprite;
+            CardTypeId = typeId;
+            _front = front;
+            _back = back;
+            
+            if (_display) 
+            {
+                _display.sprite = back;
+                _display.color = Color.white;
+            }
+            
+            IsMatched = false;
             IsFaceUp = false;
         }
 
         public void OnPointerClick(PointerEventData eventData)
         {
-            if (IsFaceUp || IsMatched || IsProcessing) return;
-            OnCardClicked?.Invoke(this);
+            if (!IsFaceUp && !IsMatched && !_animating)
+                Core.GameManager.Instance.OnCardSelected(this);
         }
 
-        public void FlipOpen()
-        {
-            if (IsFaceUp) return;
-            if (Core.SoundManager.Instance != null) Core.SoundManager.Instance.PlayFlip();
-            IsFaceUp = true;
-            StartCoroutine(FlipRoutine(true));
-        }
-
-        public void FlipClose()
-        {
-            if (!IsFaceUp) return;
-            IsFaceUp = false;
-            StartCoroutine(FlipRoutine(false));
-        }
+        public void FlipOpen() => StartCoroutine(Flip(true));
+        public void FlipClose() => StartCoroutine(Flip(false));
 
         public void SetMatched()
         {
             IsMatched = true;
             IsFaceUp = true;
-            _targetImage.sprite = _frontSprite;
-            _targetImage.color = Color.gray; 
-        }
-
-        public void SetFaceUpImmediate()
-        {
-            IsFaceUp = true;
-            _targetImage.sprite = _frontSprite;
-            // No color change, not matched yet
-        }
-
-        private IEnumerator FlipRoutine(bool showFront)
-        {
-            IsProcessing = true;
-            float duration = 0.2f;
-            float elapsed = 0f;
-            Quaternion startRot = transform.localRotation;
-            Quaternion midRot = Quaternion.Euler(0, 90, 0);
-            Quaternion endRot = Quaternion.Euler(0, 0, 0);
-
-            // Rotate 0 -> 90
-            while (elapsed < duration / 2)
+            if (_display)
             {
-                elapsed += Time.deltaTime;
-                float t = elapsed / (duration / 2);
-                transform.localRotation = Quaternion.Lerp(startRot, midRot, t);
+                _display.sprite = _front;
+                _display.color = Color.gray;
+            }
+        }
+
+        private IEnumerator Flip(bool showFront)
+        {
+            _animating = true;
+            if (showFront) Core.AudioManager.Instance.PlayFlip();
+            
+            float duration = 0.12f;
+            for (float t = 0; t < duration; t += Time.deltaTime)
+            {
+                if (!this || !_display) yield break;
+                transform.localScale = new Vector3(Mathf.Lerp(1, 0, t / duration), 1, 1);
                 yield return null;
             }
 
-            // Swap Sprite exactly at 90 degrees
-            _targetImage.sprite = showFront ? _frontSprite : _backSprite;
+            if (!_display) yield break;
+            _display.sprite = showFront ? _front : _back;
+            IsFaceUp = showFront;
 
-            // Rotate 90 -> 0
-            elapsed = 0f;
-            while (elapsed < duration / 2)
+            for (float t = 0; t < duration; t += Time.deltaTime)
             {
-                elapsed += Time.deltaTime;
-                float t = elapsed / (duration / 2);
-                transform.localRotation = Quaternion.Lerp(midRot, endRot, t);
+                if (!this || !_display) yield break;
+                transform.localScale = new Vector3(Mathf.Lerp(0, 1, t / duration), 1, 1);
                 yield return null;
             }
-
-            transform.localRotation = endRot;
-            IsProcessing = false;
+            if (this) transform.localScale = Vector3.one;
+            _animating = false;
         }
     }
 }

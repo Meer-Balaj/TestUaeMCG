@@ -5,40 +5,27 @@ namespace UI
 {
     public class FloatingText : MonoBehaviour
     {
-        [SerializeField] private TextMeshProUGUI _textComponent; 
-        [SerializeField] private float _moveSpeed = 100f; // Pixels per second if on Canvas
-        [SerializeField] private float _lifeTime = 1.0f;
+        [SerializeField] private TextMeshProUGUI _tmp;
+        [SerializeField] private float _speed = 100f;
+        [SerializeField] private float _life = 1f;
 
-        private float _timer;
-        private Color _startColor;
+        private float _time;
+        private Color _color;
 
         public void Initialize(string text, Color color)
         {
-             if (_textComponent == null) _textComponent = GetComponent<TextMeshProUGUI>();
-             
-             if (_textComponent != null)
-             {
-                 _textComponent.text = text;
-                 _textComponent.color = color;
-                 _startColor = color;
-             }
-             
-             _timer = 0f;
-             Destroy(gameObject, _lifeTime);
+            if (!_tmp) _tmp = GetComponent<TextMeshProUGUI>();
+            _tmp.text = text;
+            _tmp.color = color;
+            _color = color;
+            Destroy(gameObject, _life);
         }
 
         private void Update()
         {
-            // Move up
-            transform.Translate(Vector3.up * _moveSpeed * Time.deltaTime);
-
-            // Fade out
-            _timer += Time.deltaTime;
-            if (_textComponent != null)
-            {
-                float alpha = Mathf.Lerp(1f, 0f, _timer / _lifeTime);
-                _textComponent.color = new Color(_startColor.r, _startColor.g, _startColor.b, alpha);
-            }
+            transform.Translate(Vector3.up * _speed * Time.deltaTime);
+            _time += Time.deltaTime;
+            if (_tmp) _tmp.color = new Color(_color.r, _color.g, _color.b, 1 - (_time / _life));
         }
     }
 }

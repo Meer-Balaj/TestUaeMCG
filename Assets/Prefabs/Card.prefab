@@ -89,8 +89,4 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2ae85dd3175cf8f4f97cd8d867d7c4f6, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  _targetImage: {fileID: 2611683643263260809}
-  CardTypeId: 0
-  IsFaceUp: 0
-  IsMatched: 0
-  IsProcessing: 0
+  _display: {fileID: 2611683643263260809}
