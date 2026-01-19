@@ -143,7 +143,7 @@ namespace UI
         public void OnLevelBtn(int level, int rows, int cols)
         {
             var saved = Core.SaveManager.LoadFullState();
-            if (saved != null && saved.Level == level)
+            if (saved != null && saved.Level == level && saved.CardIds != null && saved.CardIds.Count > 0)
             {
                 Core.GameManager.Instance.ResumeLevel();
             }

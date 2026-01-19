@@ -21,6 +21,8 @@ namespace Core
 
         private void Awake()
         {
+            QualitySettings.vSyncCount = 0;
+            Application.targetFrameRate = 60;
             if (Instance == null) 
             { 
                 Instance = this; 
@@ -60,7 +62,7 @@ namespace Core
         public void ResumeLevel()
         {
             var state = SaveManager.LoadFullState();
-            if (state == null) return;
+            if (state == null || state.CardIds == null || state.CardIds.Count == 0) return;
 
             if (!_grid) _grid = FindObjectOfType<GridManager>(true);
 
@@ -178,6 +180,8 @@ namespace Core
             if (!_grid || _matchesFound >= _totalPairs || ScoreManager.Instance.CurrentScore <= _failThreshold) return;
             
             _grid.GetState(out var ids, out var matched);
+            if (ids == null || ids.Count == 0) return;
+            
             var state = new GameState
             {
                 Level = _currentLevel,
